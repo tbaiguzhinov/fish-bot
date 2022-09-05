@@ -1,8 +1,4 @@
-from itertools import product
 import requests
-import os
-
-from dotenv import load_dotenv
 
 
 def authenticate(client_id):
@@ -22,11 +18,10 @@ def get_all_products(access_token):
         'https://api.moltin.com/v2/products',
         headers={
             'Authorization': f'Bearer {access_token}',
-            # 'Content-Type': 'application/json',
         }
     )
     response.raise_for_status()
-    return response.json()
+    return response.json()['data']
 
 
 def create_cart(product_id, quantity, access_token):
@@ -36,26 +31,12 @@ def create_cart(product_id, quantity, access_token):
             'Authorization': f'Bearer {access_token}',
             'Content-Type': 'application/json',
         },
-    json={
-        "data": {
-            "id": product_id,
-            "type": "cart_item",
-            "quantity": quantity,
-        }
-    })
+        json={
+            "data": {
+                "id": product_id,
+                "type": "cart_item",
+                "quantity": quantity,
+            }
+        })
     response.raise_for_status()
     return response.json()
-
-
-def main():
-    load_dotenv()
-    client_id = os.getenv('MOLTIN_CLIENT_ID')
-    access_token = authenticate(client_id)
-    products = get_all_products(access_token)
-    product_id = products['data'][0]['id']
-    cart = create_cart(product_id, 1, access_token)
-    print(cart)
-
-
-if __name__ == "__main__":
-    main()
