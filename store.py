@@ -24,6 +24,34 @@ def get_all_products(access_token):
     return response.json()['data']
 
 
+def get_file(file_id, access_token):
+    response = requests.get(
+        f'https://api.moltin.com/v2/files/{file_id}',
+        headers={
+            'Authorization': f'Bearer {access_token}',
+        }
+    )
+    response.raise_for_status()
+    return response.json()['data']
+
+
+def get_photo(link):
+    response = requests.get(link)
+    response.raise_for_status()
+    return response.content
+
+
+def get_product(product_id, access_token):
+    response = requests.get(
+        f'https://api.moltin.com/v2/products/{product_id}',
+        headers={
+            'Authorization': f'Bearer {access_token}',
+        }
+    )
+    response.raise_for_status()
+    return response.json()['data']
+
+
 def create_cart(product_id, quantity, access_token):
     response = requests.post(
         'https://api.moltin.com/v2/carts/abd/items',
