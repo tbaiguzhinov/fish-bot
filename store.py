@@ -52,19 +52,37 @@ def get_product(product_id, access_token):
     return response.json()['data']
 
 
-def create_cart(product_id, quantity, access_token):
-    response = requests.post(
-        'https://api.moltin.com/v2/carts/abd/items',
-        headers={
-            'Authorization': f'Bearer {access_token}',
-            'Content-Type': 'application/json',
-        },
-        json={
+def get_cart(client_id, access_token):
+    response = requests.get(
+        f'https://api.moltin.com/v2/carts/{client_id}',
+        headers={'Authorization': f'Bearer {access_token}'},
+    )
+    response.raise_for_status()
+    return response.json()['data']
+
+
+def get_cart_items(client_id, access_token):
+    response = requests.get(
+        f'https://api.moltin.com/v2/carts/{client_id}/items',
+        headers={'Authorization': f'Bearer {access_token}'},
+    )
+    response.raise_for_status()
+    return response.json()['data']
+
+
+def add_to_cart(client_id, product_id, quantity, access_token):
+    payload={
             "data": {
                 "id": product_id,
                 "type": "cart_item",
                 "quantity": quantity,
-            }
-        })
+            }}
+    response = requests.post(
+        f'https://api.moltin.com/v2/carts/{client_id}/items',
+        headers={
+            'Authorization': f'Bearer {access_token}',
+        },
+        json=payload,
+    )
     response.raise_for_status()
     return response.json()
