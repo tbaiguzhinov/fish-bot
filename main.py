@@ -1,8 +1,9 @@
 import os
 from functools import partial
 
-# import logging
+import logging
 import redis
+import telegram
 from dotenv import load_dotenv
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (CallbackContext, CallbackQueryHandler,
@@ -11,6 +12,9 @@ from telegram.ext import (CallbackContext, CallbackQueryHandler,
 from store import (add_to_cart, authenticate, create_customer,
                    get_all_products, get_cart, get_cart_items, get_file,
                    get_photo, get_product, remove_product_from_cart)
+from get_logger import TelegramLogsHandler
+
+logger = logging.getLogger('Logger')
 
 
 def start(moltin_token, update: Update, context: CallbackContext):
@@ -80,20 +84,24 @@ def handle_description(moltin_token, update: Update, context: CallbackContext):
     if callback == 'cart':
         client_id = update.effective_chat.id
         cart_items = get_cart_items(client_id, moltin_token)
-        grand_total = get_cart(client_id, moltin_token)['meta']['display_price']['with_tax']['formatted']
+        grand_total = get_cart(client_id, moltin_token)[
+            'meta']['display_price']['with_tax']['formatted']
         text = []
         keyboard = []
-        for item in cart_items:    
+        for item in cart_items:
             name = item['name']
             product_id = item['id']
             description = item['description']
             price = item['meta']['display_price']['with_tax']['unit']['formatted']
             amount = item['quantity']
             total = item['meta']['display_price']['with_tax']['value']['formatted']
-            text.append(f'{name}\n{description}\n{price} per kg\n{amount}kg in cart for {total}')
-            keyboard.append([InlineKeyboardButton(f'Убрать из корзины {name}', callback_data=f'{product_id}')])
+            text.append(
+                f'{name}\n{description}\n{price} per kg\n{amount}kg in cart for {total}')
+            keyboard.append([InlineKeyboardButton(
+                f'Убрать из корзины {name}', callback_data=f'{product_id}')])
         text.append(f'Total: {grand_total}')
-        keyboard.append([InlineKeyboardButton('Оплатить', callback_data='pay')])
+        keyboard.append([InlineKeyboardButton(
+            'Оплатить', callback_data='pay')])
         keyboard.append([InlineKeyboardButton('В меню', callback_data='back')])
         reply_markup = InlineKeyboardMarkup(keyboard)
         context.bot.send_message(
@@ -122,7 +130,8 @@ def handle_description(moltin_token, update: Update, context: CallbackContext):
                 )
             ]
             keyboard.append(button)
-        keyboard.append([InlineKeyboardButton('Корзина', callback_data='cart')])
+        keyboard.append([InlineKeyboardButton(
+            'Корзина', callback_data='cart')])
         reply_markup = InlineKeyboardMarkup(keyboard)
         context.bot.send_message(
             chat_id=update.effective_chat.id,
@@ -145,7 +154,8 @@ def handle_cart(moltin_token, update: Update, context: CallbackContext):
                 )
             ]
             keyboard.append(button)
-        keyboard.append([InlineKeyboardButton('Корзина', callback_data='cart')])
+        keyboard.append([InlineKeyboardButton(
+            'Корзина', callback_data='cart')])
         reply_markup = InlineKeyboardMarkup(keyboard)
         context.bot.send_message(
             chat_id=update.effective_chat.id,
@@ -225,8 +235,19 @@ def get_database_connection():
     )
 
 
+def error_handler(update: Update, context: CallbackContext):
+    logger.error(msg="Телеграм бот упал с ошибкой:", exc_info=context.error)
+
+
 def main():
     load_dotenv()
+    logger_bot_token = os.getenv('LOGGER_BOT_TOKEN')
+    chat_id = os.getenv('TELEGRAM_CHAT_ID')
+
+    logger_bot = telegram.Bot(logger_bot_token)
+    logger.addHandler(TelegramLogsHandler(logger_bot, chat_id))
+    logger.warning("Fish бот запущен")
+
     client_id = os.getenv('MOLTIN_CLIENT_ID')
     moltin_token = authenticate(client_id)
     handle_users_reply_partial = partial(handle_users_reply, moltin_token)
@@ -238,6 +259,7 @@ def main():
     dispatcher.add_handler(MessageHandler(
         Filters.text, handle_users_reply_partial))
     dispatcher.add_handler(CommandHandler('start', handle_users_reply_partial))
+    dispatcher.add_error_handler(error_handler)
     updater.start_polling()
     updater.idle()
 
