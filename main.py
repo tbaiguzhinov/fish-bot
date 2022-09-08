@@ -102,9 +102,9 @@ def handle_description(moltin_token, update: Update, context: CallbackContext):
                 'with_tax']['value']['formatted']
             text.append(
                 f'''{name}
-                {description}
-                {price} per kg
-                {amount}kg in cart for {total}''')
+{description}
+{price} per kg
+{amount}kg in cart for {total}''')
             keyboard.append([InlineKeyboardButton(
                 f'Убрать из корзины {name}', callback_data=f'{product_id}')])
         text.append(f'Total: {grand_total}')
