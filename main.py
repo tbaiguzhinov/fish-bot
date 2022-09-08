@@ -1,7 +1,7 @@
+import logging
 import os
 from functools import partial
 
-import logging
 import redis
 import telegram
 from dotenv import load_dotenv
@@ -9,15 +9,16 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (CallbackContext, CallbackQueryHandler,
                           CommandHandler, Filters, MessageHandler, Updater)
 
+from get_logger import TelegramLogsHandler
 from store import (add_to_cart, authenticate, create_customer,
                    get_all_products, get_cart, get_cart_items, get_file,
                    get_photo, get_product, remove_product_from_cart)
-from get_logger import TelegramLogsHandler
 
 logger = logging.getLogger('Logger')
 
 
 def start(moltin_token, update: Update, context: CallbackContext):
+    """Start bot."""
     products = get_all_products(moltin_token)
     keyboard = []
     for product in products:
@@ -38,6 +39,7 @@ def start(moltin_token, update: Update, context: CallbackContext):
 
 
 def handle_menu(moltin_token, update: Update, context: CallbackContext):
+    """Handle menu."""
     context.bot.delete_message(
         chat_id=update.effective_chat.id,
         message_id=update.callback_query.message.message_id,
@@ -80,6 +82,7 @@ def handle_menu(moltin_token, update: Update, context: CallbackContext):
 
 
 def handle_description(moltin_token, update: Update, context: CallbackContext):
+    """Handle description of product."""
     callback = update.callback_query.data
     if callback == 'cart':
         client_id = update.effective_chat.id
@@ -92,11 +95,16 @@ def handle_description(moltin_token, update: Update, context: CallbackContext):
             name = item['name']
             product_id = item['id']
             description = item['description']
-            price = item['meta']['display_price']['with_tax']['unit']['formatted']
+            price = item['meta']['display_price'][
+                'with_tax']['unit']['formatted']
             amount = item['quantity']
-            total = item['meta']['display_price']['with_tax']['value']['formatted']
+            total = item['meta']['display_price'][
+                'with_tax']['value']['formatted']
             text.append(
-                f'{name}\n{description}\n{price} per kg\n{amount}kg in cart for {total}')
+                f'''{name}
+                {description}
+                {price} per kg
+                {amount}kg in cart for {total}''')
             keyboard.append([InlineKeyboardButton(
                 f'Убрать из корзины {name}', callback_data=f'{product_id}')])
         text.append(f'Total: {grand_total}')
@@ -142,6 +150,7 @@ def handle_description(moltin_token, update: Update, context: CallbackContext):
 
 
 def handle_cart(moltin_token, update: Update, context: CallbackContext):
+    """Handle user cart."""
     callback = update.callback_query.data
     if callback == 'back':
         products = get_all_products(moltin_token)
@@ -179,6 +188,7 @@ def handle_cart(moltin_token, update: Update, context: CallbackContext):
 
 
 def obtain_email(moltin_token, update: Update, context: CallbackContext):
+    """Get user email."""
     email = update.message.text
     text = f'Вы прислали мне эту почту: {email}'
     context.bot.send_message(
@@ -195,6 +205,7 @@ def obtain_email(moltin_token, update: Update, context: CallbackContext):
 
 
 def handle_users_reply(moltin_token, update: Update, context: CallbackContext):
+    """Handle user replies."""
     db = get_database_connection()
     if update.message:
         user_reply = update.message.text
@@ -225,6 +236,7 @@ def handle_users_reply(moltin_token, update: Update, context: CallbackContext):
 
 
 def get_database_connection():
+    """Get connection to redis."""
     database_password = os.getenv("DATABASE_PASSWORD")
     database_host = os.getenv("DATABASE_HOST")
     database_port = os.getenv("DATABASE_PORT")
@@ -236,10 +248,12 @@ def get_database_connection():
 
 
 def error_handler(update: Update, context: CallbackContext):
+    """Handle errors."""
     logger.error(msg="Телеграм бот упал с ошибкой:", exc_info=context.error)
 
 
 def main():
+    """Main function."""
     load_dotenv()
     logger_bot_token = os.getenv('LOGGER_BOT_TOKEN')
     chat_id = os.getenv('TELEGRAM_CHAT_ID')
