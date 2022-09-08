@@ -7,7 +7,10 @@ from dotenv import load_dotenv
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (CallbackContext, CallbackQueryHandler,
                           CommandHandler, Filters, MessageHandler, Updater)
-from store import (authenticate, get_all_products, get_product, get_file, get_photo, add_to_cart, get_cart, get_cart_items)
+
+from store import (add_to_cart, authenticate, create_customer,
+                   get_all_products, get_cart, get_cart_items, get_file,
+                   get_photo, get_product, remove_product_from_cart)
 
 
 def start(moltin_token, update: Update, context: CallbackContext):
@@ -28,12 +31,6 @@ def start(moltin_token, update: Update, context: CallbackContext):
         reply_markup=reply_markup
     )
     return "HANDLE_MENU"
-
-
-def echo(update: Update, context: CallbackContext):
-    users_reply = update.message.text
-    update.message.reply_text(users_reply)
-    return "ECHO"
 
 
 def handle_menu(moltin_token, update: Update, context: CallbackContext):
@@ -85,18 +82,19 @@ def handle_description(moltin_token, update: Update, context: CallbackContext):
         cart_items = get_cart_items(client_id, moltin_token)
         grand_total = get_cart(client_id, moltin_token)['meta']['display_price']['with_tax']['formatted']
         text = []
+        keyboard = []
         for item in cart_items:    
             name = item['name']
+            product_id = item['id']
             description = item['description']
             price = item['meta']['display_price']['with_tax']['unit']['formatted']
             amount = item['quantity']
             total = item['meta']['display_price']['with_tax']['value']['formatted']
             text.append(f'{name}\n{description}\n{price} per kg\n{amount}kg in cart for {total}')
+            keyboard.append([InlineKeyboardButton(f'Убрать из корзины {name}', callback_data=f'{product_id}')])
         text.append(f'Total: {grand_total}')
-        keyboard = [
-            [InlineKeyboardButton('Оплатить', callback_data='payment')],
-            [InlineKeyboardButton('Назад', callback_data='back')],
-            ]
+        keyboard.append([InlineKeyboardButton('Оплатить', callback_data='pay')])
+        keyboard.append([InlineKeyboardButton('В меню', callback_data='back')])
         reply_markup = InlineKeyboardMarkup(keyboard)
         context.bot.send_message(
             chat_id=update.effective_chat.id,
@@ -135,7 +133,55 @@ def handle_description(moltin_token, update: Update, context: CallbackContext):
 
 
 def handle_cart(moltin_token, update: Update, context: CallbackContext):
-    return 'ECHO'
+    callback = update.callback_query.data
+    if callback == 'back':
+        products = get_all_products(moltin_token)
+        keyboard = []
+        for product in products:
+            button = [
+                InlineKeyboardButton(
+                    product['name'],
+                    callback_data=product['id'],
+                )
+            ]
+            keyboard.append(button)
+        keyboard.append([InlineKeyboardButton('Корзина', callback_data='cart')])
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text='Please choose:',
+            reply_markup=reply_markup,
+        )
+        return "HANDLE_MENU"
+    elif callback == 'pay':
+        context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text='Пожалуйста, укажите Вашу почту:',
+        )
+        return 'OBTAIN_EMAIL'
+    else:
+        remove_product_from_cart(
+            product_id=callback,
+            cart_id=update.effective_chat.id,
+            access_token=moltin_token,
+        )
+        return 'HANDLE_CART'
+
+
+def obtain_email(moltin_token, update: Update, context: CallbackContext):
+    email = update.message.text
+    text = f'Вы прислали мне эту почту: {email}'
+    context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=text,
+    )
+    create_customer(email, moltin_token)
+    text = 'Спасибо! С Вами свяжется менеждер по поводу Вашего заказа.'
+    context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=text,
+    )
+    return 'START'
 
 
 def handle_users_reply(moltin_token, update: Update, context: CallbackContext):
@@ -155,10 +201,10 @@ def handle_users_reply(moltin_token, update: Update, context: CallbackContext):
 
     states_functions = {
         'START': start,
-        'ECHO': echo,
         'HANDLE_MENU': handle_menu,
         'HANDLE_DESCRIPTION': handle_description,
         'HANDLE_CART': handle_cart,
+        'OBTAIN_EMAIL': obtain_email,
     }
     state_handler = states_functions[user_state]
     try:
