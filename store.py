@@ -12,7 +12,8 @@ def authenticate(client_id):
         }
     )
     response.raise_for_status()
-    return response.json()['access_token']
+    payload = response.json()
+    return {'token': payload['access_token'], 'expires': payload['expires']}
 
 
 def get_all_products(access_token):
