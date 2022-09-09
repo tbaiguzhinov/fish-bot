@@ -275,7 +275,15 @@ def obtain_email(moltin_token, update: Update, context: CallbackContext):
 
 def handle_users_reply(moltin_token, update: Update, context: CallbackContext):
     """Handle user replies."""
-    db = get_database_connection()
+    database_password = os.getenv("DATABASE_PASSWORD")
+    database_host = os.getenv("DATABASE_HOST")
+    database_port = os.getenv("DATABASE_PORT")
+    db =  redis.Redis(
+        host=database_host,
+        port=database_port,
+        password=database_password
+    )
+
     if update.message:
         user_reply = update.message.text
         chat_id = update.message.chat_id
@@ -302,18 +310,6 @@ def handle_users_reply(moltin_token, update: Update, context: CallbackContext):
         db.set(chat_id, next_state)
     except Exception as err:
         print(err)
-
-
-def get_database_connection():
-    """Get connection to redis."""
-    database_password = os.getenv("DATABASE_PASSWORD")
-    database_host = os.getenv("DATABASE_HOST")
-    database_port = os.getenv("DATABASE_PORT")
-    return redis.Redis(
-        host=database_host,
-        port=database_port,
-        password=database_password
-    )
 
 
 def error_handler(update: Update, context: CallbackContext):
