@@ -1,5 +1,6 @@
 import logging
 import os
+import textwrap
 from functools import partial
 
 import redis
@@ -100,21 +101,23 @@ def handle_description(moltin_token, update: Update, context: CallbackContext):
             amount = item['quantity']
             total = item['meta']['display_price'][
                 'with_tax']['value']['formatted']
-            text.append(
-                f'''{name}
-{description}
-{price} per kg
-{amount}kg in cart for {total}''')
+            text.append(textwrap.dedent(
+                f'''
+                {name}
+                {description}
+                {price} per kg
+                {amount}kg in cart for {total}
+                '''))
             keyboard.append([InlineKeyboardButton(
                 f'Убрать из корзины {name}', callback_data=f'{product_id}')])
-        text.append(f'Total: {grand_total}')
+        text.append(f'\nTotal: {grand_total}')
         keyboard.append([InlineKeyboardButton(
             'Оплатить', callback_data='pay')])
         keyboard.append([InlineKeyboardButton('В меню', callback_data='back')])
         reply_markup = InlineKeyboardMarkup(keyboard)
         context.bot.send_message(
             chat_id=update.effective_chat.id,
-            text='\n\n'.join(text),
+            text=''.join(text),
             reply_markup=reply_markup,
         )
         return 'HANDLE_CART'
