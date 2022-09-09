@@ -81,11 +81,11 @@ def get_cart_items(client_id, access_token):
 def add_to_cart(client_id, product_id, quantity, access_token):
     """Add a product to cart."""
     payload = {
-            "data": {
-                "id": product_id,
-                "type": "cart_item",
-                "quantity": quantity,
-            }}
+        "data": {
+            "id": product_id,
+            "type": "cart_item",
+            "quantity": quantity,
+        }}
     response = requests.post(
         f'https://api.moltin.com/v2/carts/{client_id}/items',
         headers={

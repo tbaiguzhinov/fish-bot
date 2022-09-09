@@ -1,11 +1,14 @@
 import logging
 import os
 import textwrap
+import time
 from functools import partial
+from urllib.error import HTTPError
 
 import redis
 import telegram
 from dotenv import load_dotenv
+from email_validator import validate_email, EmailNotValidError, EmailSyntaxError
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (CallbackContext, CallbackQueryHandler,
                           CommandHandler, Filters, MessageHandler, Updater)
@@ -20,7 +23,14 @@ logger = logging.getLogger('Logger')
 
 def start(moltin_token, update: Update, context: CallbackContext):
     """Start bot."""
-    products = get_all_products(moltin_token)
+    products = []
+    while not products:
+        try:
+            products = get_all_products(moltin_token)
+        except HTTPError:
+            client_id = os.getenv('MOLTIN_CLIENT_ID')
+            moltin_token = authenticate(client_id)
+            time.sleep(5)
     keyboard = []
     for product in products:
         button = [
@@ -49,13 +59,21 @@ def handle_menu(moltin_token, update: Update, context: CallbackContext):
     if callback == 'cart':
         return 'HANDLE_CART'
     product_id = callback
-    product = get_product(product_id, moltin_token)
-    file = get_file(
-        file_id=product['relationships']['main_image']['data']['id'],
-        access_token=moltin_token
-    )
+    product = {}
+    file = {}
+    while not product or not file:
+        try:
+            product = get_product(product_id, moltin_token)
+            file = get_file(
+                file_id=product['relationships']['main_image']['data']['id'],
+                access_token=moltin_token
+            )
+        except HTTPError:
+            client_id = os.getenv('MOLTIN_CLIENT_ID')
+            moltin_token = authenticate(client_id)
+            time.sleep(5)
+    
     photo = get_photo(link=file['link']['href'])
-
     name = product['name']
     price = product['meta']['display_price']['with_tax']['formatted']
     stock = product['meta']['stock']['level']
@@ -87,9 +105,17 @@ def handle_description(moltin_token, update: Update, context: CallbackContext):
     callback = update.callback_query.data
     if callback == 'cart':
         client_id = update.effective_chat.id
-        cart_items = get_cart_items(client_id, moltin_token)
-        grand_total = get_cart(client_id, moltin_token)[
-            'meta']['display_price']['with_tax']['formatted']
+        cart_items = []
+        grand_total = {}
+        while not cart_items or not grand_total:
+            try:
+                cart_items = get_cart_items(client_id, moltin_token)
+                grand_total = get_cart(client_id, moltin_token)[
+                    'meta']['display_price']['with_tax']['formatted']
+            except HTTPError:
+                client_id = os.getenv('MOLTIN_CLIENT_ID')
+                moltin_token = authenticate(client_id)
+                time.sleep(5)
         text = []
         keyboard = []
         for item in cart_items:
@@ -124,14 +150,28 @@ def handle_description(moltin_token, update: Update, context: CallbackContext):
     elif callback != 'back':
         quantity, product_id = callback.split(',')
         client_id = update.effective_chat.id
-        add_to_cart(client_id, product_id, int(quantity), moltin_token)
+        result = {}
+        while not result:
+            try:
+                result = add_to_cart(client_id, product_id, int(quantity), moltin_token)
+            except HTTPError:
+                client_id = os.getenv('MOLTIN_CLIENT_ID')
+                moltin_token = authenticate(client_id)
+                time.sleep(5)
         return "HANDLE_DESCRIPTION"
     else:
         context.bot.delete_message(
             chat_id=update.effective_chat.id,
             message_id=update.callback_query.message.message_id,
         )
-        products = get_all_products(moltin_token)
+        products = []
+        while not products:
+            try:
+                products = get_all_products(moltin_token)
+            except HTTPError:
+                client_id = os.getenv('MOLTIN_CLIENT_ID')
+                moltin_token = authenticate(client_id)
+                time.sleep(5)
         keyboard = []
         for product in products:
             button = [
@@ -156,7 +196,14 @@ def handle_cart(moltin_token, update: Update, context: CallbackContext):
     """Handle user cart."""
     callback = update.callback_query.data
     if callback == 'back':
-        products = get_all_products(moltin_token)
+        products = []
+        while not products:
+            try:
+                products = get_all_products(moltin_token)
+            except HTTPError:
+                client_id = os.getenv('MOLTIN_CLIENT_ID')
+                moltin_token = authenticate(client_id)
+                time.sleep(5)
         keyboard = []
         for product in products:
             button = [
@@ -193,18 +240,37 @@ def handle_cart(moltin_token, update: Update, context: CallbackContext):
 def obtain_email(moltin_token, update: Update, context: CallbackContext):
     """Get user email."""
     email = update.message.text
-    text = f'Вы прислали мне эту почту: {email}'
-    context.bot.send_message(
-        chat_id=update.effective_chat.id,
-        text=text,
-    )
-    create_customer(email, moltin_token)
-    text = 'Спасибо! С Вами свяжется менеждер по поводу Вашего заказа.'
-    context.bot.send_message(
-        chat_id=update.effective_chat.id,
-        text=text,
-    )
-    return 'START'
+    try:
+        email = validate_email(email, timeout=5).email
+        text = f'Вы прислали мне эту почту: {email}'
+        context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=text,
+        )
+        customer = {}
+        while not customer:
+            try:
+                customer = create_customer(email, moltin_token)
+            except HTTPError:
+                client_id = os.getenv('MOLTIN_CLIENT_ID')
+                moltin_token = authenticate(client_id)
+                time.sleep(5)
+        text = 'Спасибо! С Вами свяжется менеждер по поводу Вашего заказа.'
+        context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=text,
+        )
+        return 'START'
+    except (EmailSyntaxError, EmailNotValidError) as text:
+        context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=str(text),
+        )
+        context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text='Пожалуйста, укажите Вашу почту:',
+        )
+        return 'OBTAIN_EMAIL'
 
 
 def handle_users_reply(moltin_token, update: Update, context: CallbackContext):
