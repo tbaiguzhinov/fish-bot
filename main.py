@@ -8,7 +8,8 @@ from urllib.error import HTTPError
 import redis
 import telegram
 from dotenv import load_dotenv
-from email_validator import validate_email, EmailNotValidError, EmailSyntaxError
+from email_validator import (validate_email, EmailNotValidError,
+                             EmailSyntaxError)
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (CallbackContext, CallbackQueryHandler,
                           CommandHandler, Filters, MessageHandler, Updater)
@@ -19,7 +20,6 @@ from store import (add_to_cart, authenticate, create_customer,
                    get_photo, get_product, remove_product_from_cart)
 
 logger = logging.getLogger('Logger')
-
 
 
 def get_product_keyboard(products):
@@ -35,7 +35,6 @@ def get_product_keyboard(products):
     keyboard.append([InlineKeyboardButton(
         'Корзина', callback_data='cart')])
     return InlineKeyboardMarkup(keyboard)
-
 
 
 def start(moltin_token, update: Update, context: CallbackContext):
@@ -80,7 +79,7 @@ def handle_menu(moltin_token, update: Update, context: CallbackContext):
             client_id = os.getenv('MOLTIN_CLIENT_ID')
             moltin_token = authenticate(client_id)
             time.sleep(5)
-    
+
     photo = get_photo(link=file['link']['href'])
     name = product['name']
     price = product['meta']['display_price']['with_tax']['formatted']
@@ -161,7 +160,8 @@ def handle_description(moltin_token, update: Update, context: CallbackContext):
         result = {}
         while not result:
             try:
-                result = add_to_cart(client_id, product_id, int(quantity), moltin_token)
+                result = add_to_cart(client_id, product_id,
+                                     int(quantity), moltin_token)
             except HTTPError:
                 client_id = os.getenv('MOLTIN_CLIENT_ID')
                 moltin_token = authenticate(client_id)
@@ -270,17 +270,13 @@ def obtain_email(moltin_token, update: Update, context: CallbackContext):
         return 'OBTAIN_EMAIL'
 
 
-def handle_users_reply(moltin_token, update: Update, context: CallbackContext):
+def handle_users_reply(
+        moltin_token,
+        db,
+        update: Update,
+        context: CallbackContext
+        ):
     """Handle user replies."""
-    database_password = os.getenv("DATABASE_PASSWORD")
-    database_host = os.getenv("DATABASE_HOST")
-    database_port = os.getenv("DATABASE_PORT")
-    db =  redis.Redis(
-        host=database_host,
-        port=database_port,
-        password=database_password
-    )
-
     if update.message:
         user_reply = update.message.text
         chat_id = update.message.chat_id
@@ -324,9 +320,18 @@ def main():
     logger.addHandler(TelegramLogsHandler(logger_bot, chat_id))
     logger.warning("Fish бот запущен")
 
+    database_password = os.getenv("DATABASE_PASSWORD")
+    database_host = os.getenv("DATABASE_HOST")
+    database_port = os.getenv("DATABASE_PORT")
+    db = redis.Redis(
+        host=database_host,
+        port=database_port,
+        password=database_password
+    )
+
     client_id = os.getenv('MOLTIN_CLIENT_ID')
     moltin_token = authenticate(client_id)
-    handle_users_reply_partial = partial(handle_users_reply, moltin_token)
+    handle_users_reply_partial = partial(handle_users_reply, moltin_token, db)
 
     tg_token = os.getenv("TELEGRAM_TOKEN")
     updater = Updater(tg_token)
