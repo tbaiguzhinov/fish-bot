@@ -21,6 +21,23 @@ from store import (add_to_cart, authenticate, create_customer,
 logger = logging.getLogger('Logger')
 
 
+
+def get_product_keyboard(products):
+    keyboard = []
+    for product in products:
+        button = [
+            InlineKeyboardButton(
+                product['name'],
+                callback_data=product['id'],
+            )
+        ]
+        keyboard.append(button)
+    keyboard.append([InlineKeyboardButton(
+        'Корзина', callback_data='cart')])
+    return InlineKeyboardMarkup(keyboard)
+
+
+
 def start(moltin_token, update: Update, context: CallbackContext):
     """Start bot."""
     products = []
@@ -31,20 +48,11 @@ def start(moltin_token, update: Update, context: CallbackContext):
             client_id = os.getenv('MOLTIN_CLIENT_ID')
             moltin_token = authenticate(client_id)
             time.sleep(5)
-    keyboard = []
-    for product in products:
-        button = [
-            InlineKeyboardButton(
-                product['name'],
-                callback_data=product['id'],
-            )
-        ]
-        keyboard.append(button)
-    reply_markup = InlineKeyboardMarkup(keyboard)
+    reply_markup = get_product_keyboard(products)
     context.bot.send_message(
         chat_id=update.effective_chat.id,
         text='Please choose:',
-        reply_markup=reply_markup
+        reply_markup=reply_markup,
     )
     return "HANDLE_MENU"
 
@@ -172,18 +180,7 @@ def handle_description(moltin_token, update: Update, context: CallbackContext):
                 client_id = os.getenv('MOLTIN_CLIENT_ID')
                 moltin_token = authenticate(client_id)
                 time.sleep(5)
-        keyboard = []
-        for product in products:
-            button = [
-                InlineKeyboardButton(
-                    product['name'],
-                    callback_data=product['id'],
-                )
-            ]
-            keyboard.append(button)
-        keyboard.append([InlineKeyboardButton(
-            'Корзина', callback_data='cart')])
-        reply_markup = InlineKeyboardMarkup(keyboard)
+        reply_markup = get_product_keyboard(products)
         context.bot.send_message(
             chat_id=update.effective_chat.id,
             text='Please choose:',
