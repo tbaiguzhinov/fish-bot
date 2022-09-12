@@ -38,8 +38,6 @@ def get_product_keyboard(products):
 
 def start(moltin_token, update: Update, context: CallbackContext):
     """Start bot."""
-    if moltin_token['expires'] < time.time():
-        moltin_token = authenticate(os.getenv('MOLTIN_CLIENT_ID'))
     products = get_all_products(moltin_token['token'])
     reply_markup = get_product_keyboard(products)
     context.bot.send_message(
@@ -60,8 +58,6 @@ def handle_menu(moltin_token, update: Update, context: CallbackContext):
     if callback == 'cart':
         return 'HANDLE_CART'
     product_id = callback
-    if moltin_token['expires'] < time.time():
-        moltin_token = authenticate(os.getenv('MOLTIN_CLIENT_ID'))
     product = get_product(product_id, moltin_token['token'])
     file = get_file(
         file_id=product['relationships']['main_image']['data']['id'],
@@ -99,8 +95,6 @@ def handle_description(moltin_token, update: Update, context: CallbackContext):
     callback = update.callback_query.data
     if callback == 'cart':
         client_id = update.effective_chat.id
-        if moltin_token['expires'] < time.time():
-            moltin_token = authenticate(os.getenv('MOLTIN_CLIENT_ID'))
         cart_items = get_cart_items(client_id, moltin_token['token'])
         grand_total = get_cart(client_id, moltin_token['token'])[
             'meta']['display_price']['with_tax']['formatted']
@@ -138,8 +132,6 @@ def handle_description(moltin_token, update: Update, context: CallbackContext):
     elif callback != 'back':
         quantity, product_id = callback.split(',')
         client_id = update.effective_chat.id
-        if moltin_token['expires'] < time.time():
-            moltin_token = authenticate(os.getenv('MOLTIN_CLIENT_ID'))
         add_to_cart(client_id, product_id,
                     int(quantity), moltin_token['token'])
         return "HANDLE_DESCRIPTION"
@@ -148,8 +140,6 @@ def handle_description(moltin_token, update: Update, context: CallbackContext):
             chat_id=update.effective_chat.id,
             message_id=update.callback_query.message.message_id,
         )
-        if moltin_token['expires'] < time.time():
-            moltin_token = authenticate(os.getenv('MOLTIN_CLIENT_ID'))
         products = get_all_products(moltin_token['token'])
         reply_markup = get_product_keyboard(products)
         context.bot.send_message(
@@ -164,8 +154,6 @@ def handle_cart(moltin_token, update: Update, context: CallbackContext):
     """Handle user cart."""
     callback = update.callback_query.data
     if callback == 'back':
-        if moltin_token['expires'] < time.time():
-            moltin_token = authenticate(os.getenv('MOLTIN_CLIENT_ID'))
         products = get_all_products(moltin_token['token'])
         keyboard = []
         for product in products:
@@ -210,8 +198,6 @@ def obtain_email(moltin_token, update: Update, context: CallbackContext):
             chat_id=update.effective_chat.id,
             text=text,
         )
-        if moltin_token['expires'] < time.time():
-            moltin_token = authenticate(os.getenv('MOLTIN_CLIENT_ID'))
         create_customer(email, moltin_token['token'])
         text = 'Спасибо! С Вами свяжется менеждер по поводу Вашего заказа.'
         context.bot.send_message(
@@ -260,6 +246,8 @@ def handle_users_reply(
     }
     state_handler = states_functions[user_state]
     try:
+        if moltin_token['expires'] < time.time():
+            moltin_token = authenticate(os.getenv('MOLTIN_CLIENT_ID'))
         next_state = state_handler(moltin_token, update, context)
         db.set(chat_id, next_state)
     except Exception as err:
