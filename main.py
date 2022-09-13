@@ -23,11 +23,11 @@ logger = logging.getLogger('Logger')
 
 def token_update(function):
     """Check token expiration - decorator function."""
-    def update(moltin_token, update: Update, context: CallbackContext):
+    def update(moltin_token, db, update: Update, context: CallbackContext):
         if moltin_token['expires'] < time.time():
             moltin_token = authenticate(os.getenv('MOLTIN_CLIENT_ID'))
             logger.error('Token updated')
-        return function(moltin_token, update, context)
+        return function(moltin_token, db, update, context)
     return update
 
 
