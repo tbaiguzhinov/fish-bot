@@ -248,6 +248,7 @@ def handle_users_reply(
     try:
         if moltin_token['expires'] < time.time():
             moltin_token = authenticate(os.getenv('MOLTIN_CLIENT_ID'))
+            logger.info('Token updated')
         next_state = state_handler(moltin_token, update, context)
         db.set(chat_id, next_state)
     except Exception as err:
