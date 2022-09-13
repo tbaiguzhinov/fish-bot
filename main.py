@@ -248,7 +248,7 @@ def handle_users_reply(
     try:
         if moltin_token['expires'] < time.time():
             moltin_token = authenticate(os.getenv('MOLTIN_CLIENT_ID'))
-            logger.info('Token updated')
+            logger.error('Token updated')
         next_state = state_handler(moltin_token, update, context)
         db.set(chat_id, next_state)
     except Exception as err:
@@ -281,6 +281,8 @@ def main():
 
     client_id = os.getenv('MOLTIN_CLIENT_ID')
     moltin_token = authenticate(client_id)
+    expiration = moltin_token['expires']
+    logger.error(f'Token updated until {expiration}')
     handle_users_reply_partial = partial(handle_users_reply, moltin_token, db)
 
     tg_token = os.getenv("TELEGRAM_TOKEN")
