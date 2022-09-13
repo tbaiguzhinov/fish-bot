@@ -21,6 +21,16 @@ from store import (add_to_cart, authenticate, create_customer,
 logger = logging.getLogger('Logger')
 
 
+def token_update(function):
+    """Check token expiration - decorator function."""
+    def update(moltin_token, update: Update, context: CallbackContext):
+        if moltin_token['expires'] < time.time():
+            moltin_token = authenticate(os.getenv('MOLTIN_CLIENT_ID'))
+            logger.error('Token updated')
+        return function(moltin_token, update, context)
+    return update
+
+
 def get_product_keyboard(products):
     keyboard = []
     for product in products:
@@ -217,12 +227,13 @@ def obtain_email(moltin_token, update: Update, context: CallbackContext):
         return 'OBTAIN_EMAIL'
 
 
+@token_update
 def handle_users_reply(
         moltin_token,
         db,
         update: Update,
         context: CallbackContext
-        ):
+):
     """Handle user replies."""
     if update.message:
         user_reply = update.message.text
@@ -246,9 +257,6 @@ def handle_users_reply(
     }
     state_handler = states_functions[user_state]
     try:
-        if moltin_token['expires'] < time.time():
-            moltin_token = authenticate(os.getenv('MOLTIN_CLIENT_ID'))
-            logger.error('Token updated')
         next_state = state_handler(moltin_token, update, context)
         db.set(chat_id, next_state)
     except Exception as err:
