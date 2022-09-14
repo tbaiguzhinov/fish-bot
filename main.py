@@ -7,8 +7,8 @@ from functools import partial
 import redis
 import telegram
 from dotenv import load_dotenv
-from email_validator import (validate_email, EmailNotValidError,
-                             EmailSyntaxError)
+from email_validator import (EmailNotValidError, EmailSyntaxError,
+                             validate_email)
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (CallbackContext, CallbackQueryHandler,
                           CommandHandler, Filters, MessageHandler, Updater)
@@ -23,11 +23,11 @@ logger = logging.getLogger('Logger')
 
 def token_update(function):
     """Check token expiration - decorator function."""
-    def update(moltin_token, db, update: Update, context: CallbackContext):
+    def update(moltin_token, update: Update, context: CallbackContext):
         if moltin_token['expires'] < time.time():
             moltin_token = authenticate(os.getenv('MOLTIN_CLIENT_ID'))
             logger.error('Token updated')
-        return function(moltin_token, db, update, context)
+        return function(moltin_token, update, context)
     return update
 
 
@@ -46,6 +46,7 @@ def get_product_keyboard(products):
     return InlineKeyboardMarkup(keyboard)
 
 
+@token_update
 def start(moltin_token, update: Update, context: CallbackContext):
     """Start bot."""
     products = get_all_products(moltin_token['token'])
@@ -58,6 +59,7 @@ def start(moltin_token, update: Update, context: CallbackContext):
     return "HANDLE_MENU"
 
 
+@token_update
 def handle_menu(moltin_token, update: Update, context: CallbackContext):
     """Handle menu."""
     context.bot.delete_message(
@@ -100,6 +102,7 @@ def handle_menu(moltin_token, update: Update, context: CallbackContext):
     return "HANDLE_DESCRIPTION"
 
 
+@token_update
 def handle_description(moltin_token, update: Update, context: CallbackContext):
     """Handle description of product."""
     callback = update.callback_query.data
@@ -160,6 +163,7 @@ def handle_description(moltin_token, update: Update, context: CallbackContext):
         return "HANDLE_MENU"
 
 
+@token_update
 def handle_cart(moltin_token, update: Update, context: CallbackContext):
     """Handle user cart."""
     callback = update.callback_query.data
@@ -198,6 +202,7 @@ def handle_cart(moltin_token, update: Update, context: CallbackContext):
         return 'HANDLE_CART'
 
 
+@token_update
 def obtain_email(moltin_token, update: Update, context: CallbackContext):
     """Get user email."""
     email = update.message.text
@@ -227,7 +232,6 @@ def obtain_email(moltin_token, update: Update, context: CallbackContext):
         return 'OBTAIN_EMAIL'
 
 
-@token_update
 def handle_users_reply(
         moltin_token,
         db,
