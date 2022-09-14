@@ -21,16 +21,6 @@ from store import (add_to_cart, authenticate, create_customer,
 logger = logging.getLogger('Logger')
 
 
-def token_update(function):
-    """Check token expiration - decorator function."""
-    def update(moltin_token, update: Update, context: CallbackContext):
-        if moltin_token['expires'] < time.time():
-            moltin_token = authenticate(os.getenv('MOLTIN_CLIENT_ID'))
-            logger.error('Token updated')
-        return function(moltin_token, update, context)
-    return update
-
-
 def get_product_keyboard(products):
     keyboard = []
     for product in products:
@@ -46,10 +36,9 @@ def get_product_keyboard(products):
     return InlineKeyboardMarkup(keyboard)
 
 
-@token_update
-def start(moltin_token, update: Update, context: CallbackContext):
+def start(db, update: Update, context: CallbackContext):
     """Start bot."""
-    products = get_all_products(moltin_token['token'])
+    products = get_all_products(db.get('token').decode("utf-8"))
     reply_markup = get_product_keyboard(products)
     context.bot.send_message(
         chat_id=update.effective_chat.id,
@@ -59,8 +48,7 @@ def start(moltin_token, update: Update, context: CallbackContext):
     return "HANDLE_MENU"
 
 
-@token_update
-def handle_menu(moltin_token, update: Update, context: CallbackContext):
+def handle_menu(db, update: Update, context: CallbackContext):
     """Handle menu."""
     context.bot.delete_message(
         chat_id=update.effective_chat.id,
@@ -70,10 +58,10 @@ def handle_menu(moltin_token, update: Update, context: CallbackContext):
     if callback == 'cart':
         return 'HANDLE_CART'
     product_id = callback
-    product = get_product(product_id, moltin_token['token'])
+    product = get_product(product_id, db.get('token').decode("utf-8"))
     file = get_file(
         file_id=product['relationships']['main_image']['data']['id'],
-        access_token=moltin_token['token'],
+        access_token=db.get('token').decode("utf-8"),
     )
     photo = get_photo(link=file['link']['href'])
     name = product['name']
@@ -102,14 +90,13 @@ def handle_menu(moltin_token, update: Update, context: CallbackContext):
     return "HANDLE_DESCRIPTION"
 
 
-@token_update
-def handle_description(moltin_token, update: Update, context: CallbackContext):
+def handle_description(db, update: Update, context: CallbackContext):
     """Handle description of product."""
     callback = update.callback_query.data
     if callback == 'cart':
         client_id = update.effective_chat.id
-        cart_items = get_cart_items(client_id, moltin_token['token'])
-        grand_total = get_cart(client_id, moltin_token['token'])[
+        cart_items = get_cart_items(client_id, db.get('token').decode("utf-8"))
+        grand_total = get_cart(client_id, db.get('token').decode("utf-8"))[
             'meta']['display_price']['with_tax']['formatted']
         text = []
         keyboard = []
@@ -146,14 +133,14 @@ def handle_description(moltin_token, update: Update, context: CallbackContext):
         quantity, product_id = callback.split(',')
         client_id = update.effective_chat.id
         add_to_cart(client_id, product_id,
-                    int(quantity), moltin_token['token'])
+                    int(quantity), db.get('token').decode("utf-8"))
         return "HANDLE_DESCRIPTION"
     else:
         context.bot.delete_message(
             chat_id=update.effective_chat.id,
             message_id=update.callback_query.message.message_id,
         )
-        products = get_all_products(moltin_token['token'])
+        products = get_all_products(db.get('token').decode("utf-8"))
         reply_markup = get_product_keyboard(products)
         context.bot.send_message(
             chat_id=update.effective_chat.id,
@@ -163,12 +150,11 @@ def handle_description(moltin_token, update: Update, context: CallbackContext):
         return "HANDLE_MENU"
 
 
-@token_update
-def handle_cart(moltin_token, update: Update, context: CallbackContext):
+def handle_cart(db, update: Update, context: CallbackContext):
     """Handle user cart."""
     callback = update.callback_query.data
     if callback == 'back':
-        products = get_all_products(moltin_token['token'])
+        products = get_all_products(db.get('token').decode("utf-8"))
         keyboard = []
         for product in products:
             button = [
@@ -197,13 +183,12 @@ def handle_cart(moltin_token, update: Update, context: CallbackContext):
         remove_product_from_cart(
             product_id=callback,
             cart_id=update.effective_chat.id,
-            access_token=moltin_token['token'],
+            access_token=db.get('token').decode("utf-8"),
         )
         return 'HANDLE_CART'
 
 
-@token_update
-def obtain_email(moltin_token, update: Update, context: CallbackContext):
+def obtain_email(db, update: Update, context: CallbackContext):
     """Get user email."""
     email = update.message.text
     try:
@@ -213,7 +198,7 @@ def obtain_email(moltin_token, update: Update, context: CallbackContext):
             chat_id=update.effective_chat.id,
             text=text,
         )
-        create_customer(email, moltin_token['token'])
+        create_customer(email, db.get('token').decode("utf-8"))
         text = 'Спасибо! С Вами свяжется менеждер по поводу Вашего заказа.'
         context.bot.send_message(
             chat_id=update.effective_chat.id,
@@ -233,10 +218,10 @@ def obtain_email(moltin_token, update: Update, context: CallbackContext):
 
 
 def handle_users_reply(
-        moltin_token,
-        db,
-        update: Update,
-        context: CallbackContext
+    moltin_token,
+    db,
+    update: Update,
+    context: CallbackContext
 ):
     """Handle user replies."""
     if update.message:
@@ -261,7 +246,13 @@ def handle_users_reply(
     }
     state_handler = states_functions[user_state]
     try:
-        next_state = state_handler(moltin_token, update, context)
+        expiration = int(db.get('token_expiration').decode("utf-8"))
+        if expiration < time.time():
+            moltin_token = authenticate(os.getenv('MOLTIN_CLIENT_ID'))
+            db.set('token', moltin_token['token'])
+            db.set('token_expiration', moltin_token['expires'])
+            logger.error('Token updated')
+        next_state = state_handler(db, update, context)
         db.set(chat_id, next_state)
     except Exception as err:
         print(err)
@@ -293,6 +284,10 @@ def main():
 
     client_id = os.getenv('MOLTIN_CLIENT_ID')
     moltin_token = authenticate(client_id)
+    
+    db.set('token', moltin_token['token'])
+    db.set('token_expiration', moltin_token['expires'])
+    
     expiration = moltin_token['expires']
     logger.error(f'Token updated until {expiration}')
     handle_users_reply_partial = partial(handle_users_reply, moltin_token, db)
