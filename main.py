@@ -218,7 +218,6 @@ def obtain_email(db, update: Update, context: CallbackContext):
 
 
 def handle_users_reply(
-    moltin_token,
     db,
     update: Update,
     context: CallbackContext
@@ -290,7 +289,7 @@ def main():
     
     expiration = moltin_token['expires']
     logger.error(f'Token updated until {expiration}')
-    handle_users_reply_partial = partial(handle_users_reply, moltin_token, db)
+    handle_users_reply_partial = partial(handle_users_reply, db)
 
     tg_token = os.getenv("TELEGRAM_TOKEN")
     updater = Updater(tg_token)
